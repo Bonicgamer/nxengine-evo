@@ -23,7 +23,7 @@ using namespace NXE::Graphics;
 #include <cstdarg>
 #include <string>
 #include <vector>
-#include <SDL.h>
+//#include <SDL.h>
 
 #define Respond console.Print
 
@@ -696,21 +696,21 @@ bool DebugConsole::HandleKey(int key)
     break;
 
     // command backbuffer
-    case SDLK_UP:
-    case SDLK_DOWN:
-    {
-      if (fBackBuffer.size() > 0)
-      {
-        fBackIndex += (key == SDLK_UP) ? -1 : 1;
-        if (fBackIndex < 0)
-          fBackIndex = (fBackBuffer.size() - 1);
-        else
-          fBackIndex %= fBackBuffer.size();
+    //case SDLK_UP:
+    //case SDLK_DOWN:
+    //{
+    //  if (fBackBuffer.size() > 0)
+    //  {
+    //    fBackIndex += (key == SDLK_UP) ? -1 : 1;
+    //    if (fBackIndex < 0)
+    //      fBackIndex = (fBackBuffer.size() - 1);
+    //    else
+    //      fBackIndex %= fBackBuffer.size();
 
-        fLine = fBackBuffer.at(fBackIndex);
-      }
-    }
-    break;
+    //    fLine = fBackBuffer.at(fBackIndex);
+    //  }
+    //}
+    //break;
 
     default:
     {

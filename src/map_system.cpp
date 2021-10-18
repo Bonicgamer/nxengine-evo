@@ -4,6 +4,7 @@
 
 #include "autogen/sprites.h"
 #include "graphics/Renderer.h"
+#include "graphics/types.h"
 #include "nx.h"
 using namespace NXE::Graphics;
 #include "game.h"
@@ -198,7 +199,7 @@ void ms_draw(void)
     for (int y = 0; y < ms.current_row; y++)
     {
       NXColor last_color = BLACK;
-      SDL_Rect rect;
+      NXRect rect;
       rect.x = ms.x;
       rect.y = ms.y + y;
       rect.w = ms.x + 1;
