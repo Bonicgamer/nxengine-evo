@@ -568,39 +568,39 @@ void _scheme_get2(ODItem *item)
 
 static void _upd_control(ODItem *item)
 {
-  char keyname[64];
+  //char keyname[64];
 
-  in_action action = input_get_mapping(item->id);
+  //in_action action = input_get_mapping(item->id);
 
-  if (action.key != -1)
-  {
-    int keysym = action.key;
-    snprintf(keyname, 64, "%s", SDL_GetKeyName((SDL_Keycode)keysym));
-  }
-  else if (action.jbut != -1)
-  {
-    snprintf(keyname, 64, "JBut %d", action.jbut);
-  }
-  else if (action.jaxis != -1)
-  {
-    if (action.jaxis_value > 0)
-      snprintf(keyname, 64, "JAxis %d+", action.jaxis);
-    else
-      snprintf(keyname, 64, "JAxis %d-", action.jaxis);
-  }
-  else if (action.jhat != -1)
-  {
-    if (action.jhat_value & SDL_HAT_LEFT)
-      snprintf(keyname, 64, "JHat %d L", action.jhat);
-    else if (action.jhat_value & SDL_HAT_RIGHT)
-      snprintf(keyname, 64, "JHat %d R", action.jhat);
-    else if (action.jhat_value & SDL_HAT_UP)
-      snprintf(keyname, 64, "JHat %d U", action.jhat);
-    else if (action.jhat_value & SDL_HAT_DOWN)
-      snprintf(keyname, 64, "JHat %d D", action.jhat);
-  }
+  //if (action.key != -1)
+  //{
+  //  int keysym = action.key;
+  //  snprintf(keyname, 64, "%s", SDL_GetKeyName((SDL_Keycode)keysym));
+  //}
+  //else if (action.jbut != -1)
+  //{
+  //  snprintf(keyname, 64, "JBut %d", action.jbut);
+  //}
+  //else if (action.jaxis != -1)
+  //{
+  //  if (action.jaxis_value > 0)
+  //    snprintf(keyname, 64, "JAxis %d+", action.jaxis);
+  //  else
+  //    snprintf(keyname, 64, "JAxis %d-", action.jaxis);
+  //}
+  //else if (action.jhat != -1)
+  //{
+  //  if (action.jhat_value & SDL_HAT_LEFT)
+  //    snprintf(keyname, 64, "JHat %d L", action.jhat);
+  //  else if (action.jhat_value & SDL_HAT_RIGHT)
+  //    snprintf(keyname, 64, "JHat %d R", action.jhat);
+  //  else if (action.jhat_value & SDL_HAT_UP)
+  //    snprintf(keyname, 64, "JHat %d U", action.jhat);
+  //  else if (action.jhat_value & SDL_HAT_DOWN)
+  //    snprintf(keyname, 64, "JHat %d D", action.jhat);
+  //}
 
-  maxcpy(item->righttext, _(keyname).c_str(), sizeof(item->righttext) - 1);
+  //maxcpy(item->righttext, _(keyname).c_str(), sizeof(item->righttext) - 1);
 }
 
 static void _edit_control(ODItem *item, int dir)
@@ -669,3 +669,4 @@ static void _finish_control_edit(Message *msg)
   NXE::Sound::SoundManager::getInstance()->playSfx(NXE::Sound::SFX::SND_MENU_SELECT);
   opt.dlg->Refresh();
 }
+

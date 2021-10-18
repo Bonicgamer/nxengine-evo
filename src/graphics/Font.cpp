@@ -4,16 +4,21 @@
 #include "../common/misc.h"
 #include "../Utils/Logger.h"
 #include "Renderer.h"
+#include "types.h"
 #include "../autogen/sprites.h"
 #include "../config.h"
 #include "../game.h"
 #include "../nx.h"
 
-#include <SDL_image.h>
+#include "../libretro/LibretroManager.h"
+
 #include <json.hpp>
 #include <utf8.h>
 #include <fstream>
 #include <iostream>
+
+// libretro-common
+#include <formats/image.h>
 
 using namespace NXE::Graphics;
 
@@ -71,9 +76,9 @@ bool Font::load()
     for (auto atlas : fontdef["pages"])
     {
       std::string atlaspath = ResourceManager::getInstance()->getPath(atlas.get<std::string>());
-      SDL_Surface *surf     = IMG_Load(atlaspath.c_str());
-      _atlases.push_back(SDL_CreateTextureFromSurface(Renderer::getInstance()->renderer(), surf));
-      SDL_FreeSurface(surf);
+      texture_image* img = static_cast<texture_image*>( malloc( sizeof(texture_image) ) );
+      image_texture_load(img, atlaspath.c_str());
+      _atlases.push_back(img);
     }
   }
   else
@@ -92,7 +97,7 @@ void Font::cleanup()
   _glyphs.clear();
   for (auto atlas : _atlases)
   {
-    SDL_DestroyTexture(atlas);
+    free(atlas);
   }
   _atlases.clear();
   _upscale = 1;
@@ -116,21 +121,18 @@ const Font::Glyph &Font::glyph(uint32_t codepoint)
   }
 }
 
-SDL_Texture *Font::atlas(uint32_t idx)
+texture_image *Font::atlas(uint32_t idx)
 {
   return _atlases.at(idx);
 }
 
 uint32_t Font::draw(int x, int y, const std::string &text, uint32_t color, bool isShaded)
 {
-  x *= Renderer::getInstance()->scale;
-  y *= Renderer::getInstance()->scale;
-
   int orgx = x;
   int i    = 0;
-  SDL_Rect dstrect;
-  SDL_Rect shdrect;
-  SDL_Rect srcrect;
+  NXRect dstrect;
+  NXRect shdrect;
+  NXRect srcrect;
 
   int r, g, b;
 
@@ -146,7 +148,7 @@ uint32_t Font::draw(int x, int y, const std::string &text, uint32_t color, bool 
     else ch = utf8::next(it, text.end());
 
     Glyph glyph = this->glyph(ch);
-    SDL_Texture *atlas  = this->atlas(glyph.atlasid);
+    texture_image *atlas  = this->atlas(glyph.atlasid);
 
     if (ch == '=' && game.mode != GM_CREDITS)
     {
@@ -178,16 +180,22 @@ uint32_t Font::draw(int x, int y, const std::string &text, uint32_t color, bool 
       if (isShaded)
       {
         shdrect.x = x + (glyph.xoffset * _upscale);
-        shdrect.y = y + (glyph.yoffset * _upscale + _shadowOffset * Renderer::getInstance()->scale);
+        shdrect.y = y + (glyph.yoffset * _upscale + _shadowOffset);
         shdrect.w = glyph.w * _upscale;
         shdrect.h = glyph.h * _upscale;
-        SDL_SetTextureColorMod(atlas, 0, 0, 0);
-        SDL_RenderCopy(Renderer::getInstance()->renderer(), atlas, &srcrect, &shdrect);
-        SDL_SetTextureColorMod(atlas, 255, 255, 255);
+        for (int y = 0; y < shdrect.h && y < Renderer::getInstance()->screenHeight; y++) {
+          for (int x = 0; x < shdrect.w && x < Renderer::getInstance()->screenWidth; x++) {
+            uint8_t trans = atlas->pixels[(x + srcrect.x) + atlas->width * (y + srcrect.y)] & 255;
+            Renderer::getInstance()->drawPixel(x + shdrect.x, y + shdrect.y, 0, 0, 0, trans);
+          }
+        }
       }
-      SDL_SetTextureColorMod(atlas, r, g, b);
-      SDL_RenderCopy(Renderer::getInstance()->renderer(), atlas, &srcrect, &dstrect);
-      SDL_SetTextureColorMod(atlas, 255, 255, 255);
+      for (int y = 0; y < dstrect.h && y < Renderer::getInstance()->screenHeight; y++) {
+        for (int x = 0; x < dstrect.w && x < Renderer::getInstance()->screenWidth; x++) {
+          uint8_t trans = atlas->pixels[(x + srcrect.x) + atlas->width * (y + srcrect.y)] & 255;
+          Renderer::getInstance()->drawPixel(x + dstrect.x, y + dstrect.y, r, g, b, trans);
+        }
+      }
     }
 
     if (ch == ' ')
@@ -219,19 +227,16 @@ uint32_t Font::draw(int x, int y, const std::string &text, uint32_t color, bool 
   }
 
   // return the final width of the text drawn
-  return abs((x - orgx) / Renderer::getInstance()->scale);
+  return abs(x - orgx);
 }
 
 uint32_t Font::drawLTR(int x, int y, const std::string &text, uint32_t color, bool isShaded)
 {
-  x *= Renderer::getInstance()->scale;
-  y *= Renderer::getInstance()->scale;
-
   int orgx = x;
   int i    = 0;
-  SDL_Rect dstrect;
-  SDL_Rect shdrect;
-  SDL_Rect srcrect;
+  NXRect dstrect;
+  NXRect shdrect;
+  NXRect srcrect;
 
   int r, g, b;
 
@@ -246,14 +251,14 @@ uint32_t Font::drawLTR(int x, int y, const std::string &text, uint32_t color, bo
     ch = utf8::next(it, text.end());
 
     Glyph glyph = this->glyph(ch);
-    SDL_Texture *atlas  = this->atlas(glyph.atlasid);
+    texture_image *atlas  = this->atlas(glyph.atlasid);
 
     if (ch == '=' && game.mode != GM_CREDITS)
     {
       if (_rendering)
       {
-        int offset = (int)round(((double)_height / (double)Renderer::getInstance()->scale - 6.) / 2.);
-        Renderer::getInstance()->sprites.drawSprite((x / Renderer::getInstance()->scale), (y / Renderer::getInstance()->scale) + offset, SPR_TEXTBULLET);
+        int offset = (int)round(((double)_height - 6.) / 2.);
+        Renderer::getInstance()->sprites.drawSprite(x, y + offset, SPR_TEXTBULLET);
       }
     }
     else if (_rendering && ch != ' ')
@@ -278,16 +283,22 @@ uint32_t Font::drawLTR(int x, int y, const std::string &text, uint32_t color, bo
       if (isShaded)
       {
         shdrect.x = x + (glyph.xoffset * _upscale);
-        shdrect.y = y + glyph.yoffset * _upscale + _shadowOffset * Renderer::getInstance()->scale;
+        shdrect.y = y + glyph.yoffset * _upscale + _shadowOffset;
         shdrect.w = glyph.w * _upscale;
         shdrect.h = glyph.h * _upscale;
-        SDL_SetTextureColorMod(atlas, 0, 0, 0);
-        SDL_RenderCopy(Renderer::getInstance()->renderer(), atlas, &srcrect, &shdrect);
-        SDL_SetTextureColorMod(atlas, 255, 255, 255);
+        for (int y = 0; y < shdrect.h && y < Renderer::getInstance()->screenHeight; y++) {
+          for (int x = 0; x < shdrect.w && x < Renderer::getInstance()->screenWidth; x++) {
+            uint8_t trans = atlas->pixels[(x + srcrect.x) + atlas->width * (y + srcrect.y)] & 255;
+            Renderer::getInstance()->drawPixel(x + shdrect.x, y + shdrect.y, 0, 0, 0, trans);
+          }
+        }
       }
-      SDL_SetTextureColorMod(atlas, r, g, b);
-      SDL_RenderCopy(Renderer::getInstance()->renderer(), atlas, &srcrect, &dstrect);
-      SDL_SetTextureColorMod(atlas, 255, 255, 255);
+      for (int y = 0; y < dstrect.h && y < Renderer::getInstance()->screenHeight; y++) {
+        for (int x = 0; x < dstrect.w && x < Renderer::getInstance()->screenWidth; x++) {
+          uint8_t trans = atlas->pixels[(x + srcrect.x) + atlas->width * (y + srcrect.y)] & 255;
+          Renderer::getInstance()->drawPixel(x + dstrect.x, y + dstrect.y, r, g, b, trans);
+        }
+      }
     }
 
     if (ch == ' ')
@@ -324,12 +335,12 @@ uint32_t Font::getWidth(const std::string &text)
 
 uint32_t Font::getHeight() const
 {
-  return _height / ((_upscale == 1) ? Renderer::getInstance()->scale : 1);
+  return _height;
 }
 
 uint32_t Font::getBase() const
 {
-  return _base / ((_upscale == 1) ? Renderer::getInstance()->scale : 1);
+  return _base;
 }
 
 }; // namespace Graphics

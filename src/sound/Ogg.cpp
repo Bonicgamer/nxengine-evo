@@ -7,13 +7,14 @@
 #include "../settings.h"
 #include "SoundManager.h" // SAMPLE_RATE
 
-#include <SDL.h>
-#include <SDL_mixer.h>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <string>
+
+// libretro.cpp
+unsigned retro_get_tick(void);
 
 namespace NXE
 {
@@ -39,13 +40,13 @@ bool Ogg::load(const std::string &fname, const std::string &dir, bool doloop)
       filename = ResourceManager::getInstance()->getPath(dir + fname + ".ogg", false);
     }
   }
-  _song.intro = NULL;
-  _song.intro = Mix_LoadMUS(filename.c_str());
-  if (!_song.intro)
-  {
-    LOG_ERROR("Mix_LoadMUS(): {}", Mix_GetError());
-    return false;
-  }
+  //_song.intro = NULL;
+  //_song.intro = Mix_LoadMUS(filename.c_str());
+  //if (!_song.intro)
+  //{
+  //  LOG_ERROR("Mix_LoadMUS(): {}", Mix_GetError());
+  //  return false;
+  //}
 
   filename = ResourceManager::getInstance()->getPath(dir + fname + "_loop.ogg", false);
   if (!ResourceManager::fileExists(filename))
@@ -53,13 +54,13 @@ bool Ogg::load(const std::string &fname, const std::string &dir, bool doloop)
     filename = ResourceManager::getInstance()->getPath(dir + fname + ".ogg", false);
   }
 
-  _song.loop = NULL;
-  _song.loop = Mix_LoadMUS(filename.c_str());
-  if (!_song.loop)
-  {
-    LOG_ERROR("Mix_LoadMUS(): {}", Mix_GetError());
-    return false;
-  }
+  //_song.loop = NULL;
+  //_song.loop = Mix_LoadMUS(filename.c_str());
+  //if (!_song.loop)
+  //{
+  //  LOG_ERROR("Mix_LoadMUS(): {}", Mix_GetError());
+  //  return false;
+  //}
 
   _song.doloop = doloop;
 
@@ -80,10 +81,10 @@ void Ogg::musicFinished()
   // This seems to work, but needs extensive testing.
 
   _looped        = true;
-  _song.last_pos = SDL_GetTicks();
+  _song.last_pos = retro_get_tick();
   if (_song.doloop)
   {
-    Mix_PlayMusic(_song.loop, 0);
+    //Mix_PlayMusic(_song.loop, 0);
   }
 }
 
@@ -107,26 +108,26 @@ bool Ogg::start(const std::string &fname, const std::string &dir, int startbeat,
 
   _looped = loop;
 
-  _song.last_pos = SDL_GetTicks() - startbeat;
+  _song.last_pos = retro_get_tick() - startbeat;
 
   if (_looped)
   {
-    Mix_PlayMusic(_song.loop, 0);
+    //Mix_PlayMusic(_song.loop, 0);
   }
   else
   {
-    Mix_PlayMusic(_song.intro, 0);
+    //Mix_PlayMusic(_song.intro, 0);
   }
-  Mix_VolumeMusic((double)_song.volume * ((double)settings->music_volume / 100.));
-  Mix_SetMusicPosition(startbeat / 1000);
+  //Mix_VolumeMusic((double)_song.volume * ((double)settings->music_volume / 100.));
+  //Mix_SetMusicPosition(startbeat / 1000);
 
-  Mix_HookMusicFinished(musicFinishedCallback);
+  //Mix_HookMusicFinished(musicFinishedCallback);
   return true;
 }
 
 void Ogg::updateVolume()
 {
-  Mix_VolumeMusic((double)_song.volume * ((double)settings->music_volume / 100.));
+  //Mix_VolumeMusic((double)_song.volume * ((double)settings->music_volume / 100.));
 }
 
 // pause/stop playback of the current song
@@ -137,19 +138,19 @@ uint32_t Ogg::stop()
     _song.playing = false;
     _do_loop      = false;
     _looped       = false;
-    Mix_HookMusicFinished(NULL);
-    Mix_HaltMusic();
-    if (_song.intro)
-    {
-      Mix_FreeMusic(_song.intro);
-      _song.intro = nullptr;
-    }
-    if (_song.loop)
-    {
-      Mix_FreeMusic(_song.loop);
-      _song.loop = nullptr;
-    }
-    return SDL_GetTicks() - _song.last_pos;
+    //Mix_HookMusicFinished(NULL);
+    //Mix_HaltMusic();
+    //if (_song.intro)
+    //{
+    //  Mix_FreeMusic(_song.intro);
+    //  _song.intro = nullptr;
+    //}
+    //if (_song.loop)
+    //{
+    //  Mix_FreeMusic(_song.loop);
+    //  _song.loop = nullptr;
+    //}
+    return retro_get_tick() - _song.last_pos;
   }
   return 0;
 }
@@ -170,7 +171,7 @@ void Ogg::setVolume(int newvolume)
   if (newvolume != _song.volume)
   {
     _song.volume = newvolume;
-    Mix_VolumeMusic((double)_song.volume * ((double)settings->music_volume / 100.));
+    //Mix_VolumeMusic((double)_song.volume * ((double)settings->music_volume / 100.));
   }
 }
 
@@ -179,7 +180,7 @@ void Ogg::runFade()
 
   if (!_song.fading)
     return;
-  uint32_t curtime = SDL_GetTicks();
+  uint32_t curtime = retro_get_tick();
   if ((curtime - _song.last_fade_time) >= 25)
   {
     int newvol = (_song.volume - 1);
@@ -199,12 +200,12 @@ void Ogg::runFade()
 
 void Ogg::pause()
 {
-  Mix_PauseMusic();
+  //Mix_PauseMusic();
 }
 
 void Ogg::resume()
 {
-  Mix_ResumeMusic();
+  //Mix_ResumeMusic();
 }
 
 bool Ogg::looped()

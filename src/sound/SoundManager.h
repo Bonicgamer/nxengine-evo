@@ -3,7 +3,6 @@
 
 #include "../Singleton.h"
 
-#include <SDL_mixer.h>
 #include <cstdint>
 #include <string>
 #include <vector>

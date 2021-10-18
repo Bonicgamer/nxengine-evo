@@ -10,7 +10,8 @@
 #include "../common/basics.h"
 #include "SoundManager.h"
 
-#include <SDL_mixer.h>
+#include "sslib.h"
+
 #include <string>
 
 #define PXT_NO_CHANNELS 4
@@ -103,10 +104,11 @@ private:
   bool _inited = false;
   struct
   {
-    Mix_Chunk *chunk         = NULL;
-    Mix_Chunk *resampled[NUM_RESAMPLED_BUFFERS] = {NULL};
+    SSChunk *chunk         = NULL;
+    SSChunk *resampled[NUM_RESAMPLED_BUFFERS] = {NULL};
     uint32_t resampled_rate[NUM_RESAMPLED_BUFFERS]  = {SAMPLE_RATE};
     int32_t channel          = -1;
+    int loops_left = 0;
   } _sound_fx[256];
   int32_t _slots[64];
   const uint32_t NUM_SOUNDS = 0x75;

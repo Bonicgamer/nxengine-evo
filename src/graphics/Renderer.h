@@ -8,7 +8,7 @@
 #include "Tileset.h"
 #include "Sprites.h"
 
-#include <SDL.h>
+#include <formats/image.h>
 
 
 namespace NXE
@@ -41,6 +41,7 @@ class Renderer
   public:
     static Renderer *getInstance();
 
+    uint8_t* frame_buf;
     int screenWidth = 320;
     int screenHeight = 240;
     bool widescreen = false;
@@ -84,14 +85,14 @@ class Renderer
     void fillRect(NXRect *rect, NXColor color);
 
     void drawPixel(int x, int y, NXColor color);
-    void drawPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b);
+    void drawPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255);
 
     void setClip(int x, int y, int w, int h);
     void setClip(NXRect *rect);
     void clearClip();
     bool isClipSet();
-    void clip(SDL_Rect &srcrect, SDL_Rect &dstrect);
-    void clipScaled(SDL_Rect &srcrect, SDL_Rect &dstrect);
+    void clip(NXRect &srcrect, NXRect &dstrect);
+    void clipScaled(NXRect &srcrect, NXRect &dstrect);
 
     void saveScreenshot();
 
@@ -99,19 +100,15 @@ class Renderer
 
     void tintScreen();
     void flip();
-    SDL_Renderer* renderer();
-    SDL_Window* window();
     Font font;
     Tileset tileset;
     Sprites sprites;
 
   private:
-    SDL_Window *_window = nullptr;
-    SDL_Renderer *_renderer = nullptr;
     int _current_res = -1;
     bool _need_clip = false;
-    SDL_Rect _clip_rect;
-    SDL_Texture* _spot_light;
+    NXRect _clip_rect;
+    texture_image* _spot_light;
 
   protected:
     friend class Singleton<Renderer>;

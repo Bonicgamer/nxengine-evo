@@ -325,14 +325,14 @@ bool title_init(int param)
   else
     _menuitems.push_back({"Load game",false});
 
-  _menuitems.push_back({"Options",true});
+  _menuitems.push_back({"Options",false});
 
   if (ResourceManager::getInstance()->mods().size() > 0 )
     _menuitems.push_back({"Mods",true});
   else
     _menuitems.push_back({"Mods",false});
 
-  _menuitems.push_back({"Quit",true});
+  _menuitems.push_back({"Quit",false});
 
   return 0;
 }

@@ -1,7 +1,6 @@
 
 #ifndef _INPUT_H
 #define _INPUT_H
-#include <SDL.h>
 #include <string>
 
 typedef struct
@@ -60,7 +59,6 @@ enum INPUTS
 extern bool inputs[INPUT_COUNT];
 extern bool lastinputs[INPUT_COUNT];
 extern in_action last_sdl_action;
-extern SDL_Joystick *joy;
 extern int ACCEPT_BUTTON;
 extern int DECLINE_BUTTON;
 

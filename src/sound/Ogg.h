@@ -4,7 +4,6 @@
 
 #include "../Singleton.h"
 
-#include <SDL_mixer.h>
 #include <string>
 
 typedef void (*music_finished_cb)(void);
@@ -16,8 +15,8 @@ namespace Sound
 
 struct oggSong
 {
-  Mix_Music *intro = nullptr;
-  Mix_Music *loop  = nullptr;
+  //Mix_Music *intro = nullptr;
+  //Mix_Music *loop  = nullptr;
   bool playing     = false;
   int volume       = 75;
 

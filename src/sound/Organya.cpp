@@ -14,8 +14,6 @@
 #include "Pixtone.h"
 #include "SoundManager.h"
 
-#include <SDL.h>
-#include <SDL_mixer.h>
 #include <cmath>
 #include <cstring>
 #include <fstream>
@@ -23,6 +21,9 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+
+// libretro.cpp
+unsigned retro_get_tick(void);
 
 //------------------------------------------------------------------------------
 
@@ -173,7 +174,7 @@ void Song::Synth()
 
   // Begin synthesis
 
-  last_gen_tick = SDL_GetTicks();
+  last_gen_tick = retro_get_tick();
   last_gen_beat = cur_beat;
 
   if (cur_beat == loop_end)
@@ -331,7 +332,7 @@ void myMusicPlayer(void *udata, uint8_t *stream, int len)
 
 void Organya::_musicCallback(void *udata, uint8_t *stream, uint32_t len)
 {
-  SDL_memset(stream, 0, len);
+  memset(stream, 0, len);
   if (!song.playing)
     return;
   int16_t *str = reinterpret_cast<int16_t *>(stream);
@@ -371,11 +372,8 @@ bool Organya::start(int startBeat)
   song.playing = true;
   fading       = false;
   volume       = 0.75;
-  musicCallback
-      = std::bind(&Organya::_musicCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
   _setPlayPosition(startBeat);
   song.Synth();
-  Mix_HookMusic(myMusicPlayer, NULL);
   return true;
 }
 
@@ -388,7 +386,7 @@ uint32_t Organya::stop()
        to audio device in bulk and there's no way of knowing
        how many samples actually played.
     */
-    uint32_t delta    = SDL_GetTicks() - song.last_gen_tick;
+    uint32_t delta    = retro_get_tick() - song.last_gen_tick;
     uint32_t beats    = (double)delta / (double)song.ms_per_beat;
     uint32_t cur_beat = song.last_gen_beat + beats;
     if (cur_beat >= song.loop_end)
@@ -397,7 +395,6 @@ uint32_t Organya::stop()
     }
 
     song.playing = false;
-    Mix_HookMusic(NULL, NULL);
     return cur_beat;
   }
   return 0;
@@ -433,7 +430,7 @@ void Organya::runFade()
 {
   if (!fading)
     return;
-  uint32_t curtime = SDL_GetTicks();
+  uint32_t curtime = retro_get_tick();
 
   if ((curtime - last_fade_time) >= 25)
   {

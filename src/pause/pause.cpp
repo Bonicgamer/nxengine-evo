@@ -50,9 +50,7 @@ bool pause_init(int param)
   memset(lastinputs, 1, sizeof(lastinputs));
   dlg = new Dialog();
   dlg->AddItem("Resume", _resume);
-  dlg->AddItem("Options", _options);
   dlg->AddItem("Reset", _reset);
-  dlg->AddItem("Quit", _exit);
   dlg->SetSelection(mm_cursel);
   dlg->ShowFull();
   int maxsize = 0;
@@ -62,7 +60,7 @@ bool pause_init(int param)
     if (x > maxsize)
       maxsize = x;
   }
-  dlg->SetSize(maxsize + 60, 70);
+  dlg->SetSize(maxsize + 60, 45);
   return 0;
 }
 

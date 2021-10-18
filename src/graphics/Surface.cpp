@@ -1,7 +1,8 @@
 #include "Surface.h"
 #include "Renderer.h"
 #include "../Utils/Logger.h"
-#include "zoom.h"
+
+#include <formats/image.h>
 
 namespace NXE
 {
@@ -25,31 +26,31 @@ bool Surface::loadImage(const std::string &pbm_name, bool use_colorkey)
 {
   cleanup();
 
-  SDL_Surface *image = SDL_LoadBMP(pbm_name.c_str());
-  if (!image)
-  {
-    LOG_ERROR("Surface::LoadImage: load failed of '{}'! {}", pbm_name, SDL_GetError());
-    return false;
-  }
+  _texture = static_cast<texture_image*>(malloc(sizeof(texture_image)));
+  if (image_texture_load(_texture, pbm_name.c_str()) <= 0)
+      return false;
+  //LOG_INFO("{}", _texture->width);
 
-  _width = image->w * Renderer::getInstance()->scale;
-  _height = image->h * Renderer::getInstance()->scale;
-
-  SDL_Surface *image_scaled = SDL_ZoomSurface(image, Renderer::getInstance()->scale);
-  SDL_FreeSurface(image);
+  _width = _texture->width;
+  _height = _texture->height;
 
   if (use_colorkey)
   {
-    SDL_SetColorKey(image_scaled, SDL_TRUE, SDL_MapRGB(image_scaled->format, 0, 0, 0));
+    uint8_t* pixes = reinterpret_cast<uint8_t*>(_texture->pixels);
+    for (int y = 0; y < _height; y++) {
+      for (int x = 0; x < _width; x++) {
+        if (pixes[x * 4 + y * 4 * _width + 0] == 0 &&
+            pixes[x * 4 + y * 4 * _width + 1] == 0 &&
+            pixes[x * 4 + y * 4 * _width + 2] == 0
+           )
+            pixes[x * 4 + y * 4 * _width + 3] = 0;
+      }
+    }
   }
-
-  _texture = SDL_CreateTextureFromSurface(Renderer::getInstance()->renderer(), image_scaled);
-
-  SDL_FreeSurface(image_scaled);
 
   if (!_texture)
   {
-    LOG_ERROR("Surface::LoadImage: SDL_CreateTextureFromSurface failed: {}", SDL_GetError());
+    //LOG_ERROR("Surface::LoadImage: SDL_CreateTextureFromSurface failed: {}", SDL_GetError());
     return false;
   }
 
@@ -70,15 +71,15 @@ Surface *Surface::fromFile(const std::string &pbm_name, bool use_colorkey)
 
 int Surface::width()
 {
-  return _width / Renderer::getInstance()->scale;
+  return _width;
 }
 
 int Surface::height()
 {
-  return _height / Renderer::getInstance()->scale;
+  return _height;
 }
 
-SDL_Texture* Surface::texture()
+texture_image* Surface::texture()
 {
   return _texture;
 }
@@ -87,7 +88,8 @@ void Surface::cleanup()
 {
   if (_texture)
   {
-    SDL_DestroyTexture(_texture);
+    image_texture_free(static_cast<texture_image*>(_texture));
+    free(_texture);
     _texture = nullptr;
   }
 }

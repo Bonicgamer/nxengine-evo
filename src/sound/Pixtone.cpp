@@ -10,8 +10,13 @@
 #include "../Utils/Logger.h"
 #include "../config.h"
 
-#include <SDL.h>
-#include <SDL_mixer.h>
+#include "sslib.h"
+
+// libretro-common
+#include <audio/audio_resampler.h>
+#include <audio/conversion/float_to_s16.h>
+#include <audio/conversion/s16_to_float.h>
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -27,6 +32,11 @@ namespace NXE
 {
 namespace Sound
 {
+
+static void mySfxCallback(int chan, int slot)
+{
+    Pixtone::getInstance()->pxtSoundDone(chan);
+}
 
 static struct
 {
@@ -295,9 +305,6 @@ bool Pixtone::init()
     snd.freeBuf();
   }
 
-  sfxCallback = std::bind(&Pixtone::pxtSoundDone, this, std::placeholders::_1);
-  Mix_ChannelFinished(mySfxCallback);
-
   return true;
 }
 
@@ -307,16 +314,16 @@ void Pixtone::shutdown()
   {
     if (_sound_fx[i].chunk)
     {
-      SDL_free(_sound_fx[i].chunk->abuf);
-      Mix_FreeChunk(_sound_fx[i].chunk);
+      free(_sound_fx[i].chunk->buffer);
+      free(_sound_fx[i].chunk);
       _sound_fx[i].chunk = nullptr;
     }
     for (int i = 0; i < NUM_RESAMPLED_BUFFERS; i ++)
     {
       if (_sound_fx[i].resampled[i])
       {
-        SDL_free(_sound_fx[i].resampled[i]->abuf);
-        Mix_FreeChunk(_sound_fx[i].resampled[i]);
+        free(_sound_fx[i].resampled[i]->buffer);
+        free(_sound_fx[i].resampled[i]);
         _sound_fx[i].resampled[i] = nullptr;
       }
     }
@@ -327,7 +334,7 @@ int Pixtone::play(int32_t chan, int32_t slot, int32_t loop)
 {
   if (_sound_fx[slot].chunk)
   {
-    chan                    = Mix_PlayChannel(chan, _sound_fx[slot].chunk, loop);
+    chan                    = SSPlayChunk(chan, _sound_fx[slot].chunk, slot, loop, mySfxCallback);
     _sound_fx[slot].channel = chan;
     _slots[chan]            = slot;
 
@@ -369,38 +376,64 @@ int Pixtone::playResampled(int32_t chan, int32_t slot, int32_t loop, uint32_t pe
 
     if (idx == -1)
     {
-      SDL_AudioCVT cvt;
+      SSChunk *rchunk       = (SSChunk*)malloc(sizeof(SSChunk));
 
-      if (SDL_BuildAudioCVT(&cvt, AUDIO_S16, 2, SAMPLE_RATE, AUDIO_S16, 2, resampled_rate) == -1)
-      {
-        LOG_ERROR("SDL_BuildAudioCVT: {}", SDL_GetError());
-      }
-      cvt.len = _sound_fx[slot].chunk->alen;
-      cvt.buf = (Uint8 *)SDL_malloc(cvt.len * cvt.len_mult);
-      SDL_memcpy(cvt.buf, _sound_fx[slot].chunk->abuf, _sound_fx[slot].chunk->alen);
+      if (!rchunk)
+        return -1;
 
-      if (SDL_ConvertAudio(&cvt) == -1)
-      {
-        LOG_ERROR("SDL_ConvertAudio: {}", SDL_GetError());
-      }
-
-/*      if (_sound_fx[slot].resampled != NULL)
-      {
-        SDL_free(_sound_fx[slot].resampled->abuf);
-        SDL_free(_sound_fx[slot].resampled);
-        _sound_fx[slot].resampled = NULL;
-      }*/
-
-      Uint8 *sound_buf = (Uint8 *)SDL_malloc(cvt.len_cvt);
-      SDL_memcpy(sound_buf, (Uint8 *)cvt.buf, cvt.len_cvt);
-      SDL_free(cvt.buf);
-
-      _sound_fx[slot].resampled[rslot] = Mix_QuickLoad_RAW(sound_buf, cvt.len_cvt);
+      _sound_fx[slot].resampled[rslot] = rchunk;
       _sound_fx[slot].resampled_rate[rslot] = resampled_rate;
+
+      double ratio    = static_cast<double>(percent / 100);
+      //double ratio    = (double)resampled_rate / (double)SAMPLE_RATE;
+
+      const retro_resampler_t *resampler = NULL;
+      void *resampler_data = NULL;
+
+      retro_resampler_realloc(&resampler_data,
+          &resampler,
+          "nearest",
+          RESAMPLER_QUALITY_DONTCARE,
+          ratio);
+
+      if (resampler && resampler_data)
+      {
+        struct resampler_data info;
+
+        float *float_buf = (float*)malloc(_sound_fx[slot].chunk->length * 2 * 
+            sizeof(float));
+
+        convert_s16_to_float(float_buf,
+            _sound_fx[slot].chunk->buffer, _sound_fx[slot].chunk->length * 2, 1.0);
+
+        float *float_resample_buf = (float*)malloc(_sound_fx[slot].chunk->length * 2 * 
+            ratio * sizeof(float));
+
+        info.data_in       = (const float*)float_buf;
+        info.data_out      = float_resample_buf;
+        /* a 'frame' consists of two channels, so we set this
+        * to the number of samples irrespective of channel count */
+        info.input_frames  = _sound_fx[slot].chunk->length;
+        info.output_frames = 0;
+        info.ratio         = ratio;
+
+        resampler->process(resampler_data, &info);
+        resampler->free(resampler_data);
+
+        /* number of output_frames does not increase with 
+        * multiple channels, but assume we need space for 2 */
+        rchunk->buffer = (int16_t*)malloc(info.output_frames * 2 * sizeof(int16_t));
+        rchunk->length = info.output_frames;
+        convert_float_to_s16(rchunk->buffer,
+            float_resample_buf, info.output_frames * 2);
+
+        free(float_buf);
+        free(float_resample_buf);
+      }
       idx = rslot;
     }
 
-    chan                    = Mix_PlayChannel(chan, _sound_fx[slot].resampled[idx], loop);
+    chan = SSPlayChunk(chan, _sound_fx[slot].resampled[idx], slot, loop, mySfxCallback);
     _sound_fx[slot].channel = chan;
     _slots[chan]            = slot;
 
@@ -442,36 +475,60 @@ int Pixtone::prepareResampled(int32_t slot, uint32_t percent)
 
     if (idx == -1) // not found
     {
-      SDL_AudioCVT cvt;
+      SSChunk *rchunk       = (SSChunk*)malloc(sizeof(SSChunk));
 
-      if (SDL_BuildAudioCVT(&cvt, AUDIO_S16, 2, SAMPLE_RATE, AUDIO_S16, 2, resampled_rate) == -1)
-      {
-        LOG_ERROR("SDL_BuildAudioCVT: {}", SDL_GetError());
-      }
-      cvt.len = _sound_fx[slot].chunk->alen;
-      cvt.buf = (Uint8 *)SDL_malloc(cvt.len * cvt.len_mult);
-      SDL_memcpy(cvt.buf, _sound_fx[slot].chunk->abuf, _sound_fx[slot].chunk->alen);
+      if (!rchunk)
+        return -1;
 
-      if (SDL_ConvertAudio(&cvt) == -1)
-      {
-        LOG_ERROR("SDL_ConvertAudio: {}", SDL_GetError());
-      }
-
-/*
-      if (_sound_fx[slot].resampled != NULL)
-      {
-        SDL_free(_sound_fx[slot].resampled->abuf);
-        SDL_free(_sound_fx[slot].resampled);
-        _sound_fx[slot].resampled = NULL;
-      }
-*/
-
-      Uint8 *sound_buf = (Uint8 *)SDL_malloc(cvt.len_cvt);
-      SDL_memcpy(sound_buf, (Uint8 *)cvt.buf, cvt.len_cvt);
-      SDL_free(cvt.buf);
-
-      _sound_fx[slot].resampled[rslot] = Mix_QuickLoad_RAW(sound_buf, cvt.len_cvt);
+      _sound_fx[slot].resampled[rslot] = rchunk;
       _sound_fx[slot].resampled_rate[rslot] = resampled_rate;
+
+      double ratio    = static_cast<double>(percent / 100);
+      //double ratio    = (double)resampled_rate / (double)SAMPLE_RATE;
+
+      const retro_resampler_t *resampler = NULL;
+      void *resampler_data = NULL;
+
+      retro_resampler_realloc(&resampler_data,
+          &resampler,
+          "nearest",
+          RESAMPLER_QUALITY_DONTCARE,
+          ratio);
+
+      if (resampler && resampler_data)
+      {
+        struct resampler_data info;
+
+        float *float_buf = (float*)malloc(_sound_fx[slot].chunk->length * 2 * 
+            sizeof(float));
+
+        convert_s16_to_float(float_buf,
+            _sound_fx[slot].chunk->buffer, _sound_fx[slot].chunk->length * 2, 1.0);
+
+        float *float_resample_buf = (float*)malloc(_sound_fx[slot].chunk->length * 2 * 
+            ratio * sizeof(float));
+
+        info.data_in       = (const float*)float_buf;
+        info.data_out      = float_resample_buf;
+        /* a 'frame' consists of two channels, so we set this
+        * to the number of samples irrespective of channel count */
+        info.input_frames  = _sound_fx[slot].chunk->length;
+        info.output_frames = 0;
+        info.ratio         = ratio;
+
+        resampler->process(resampler_data, &info);
+        resampler->free(resampler_data);
+
+        /* number of output_frames does not increase with 
+        * multiple channels, but assume we need space for 2 */
+        rchunk->buffer = (int16_t*)malloc(info.output_frames * 2 * sizeof(int16_t));
+        rchunk->length = info.output_frames;
+        convert_float_to_s16(rchunk->buffer,
+            float_resample_buf, info.output_frames * 2);
+
+        free(float_buf);
+        free(float_resample_buf);
+      }
     }
   }
   else
@@ -486,7 +543,7 @@ void Pixtone::stop(int32_t slot)
 {
   if (_sound_fx[slot].channel != -1)
   {
-    Mix_HaltChannel(_sound_fx[slot].channel);
+    SSAbortChannel(_sound_fx[slot].channel);
     if (_sound_fx[slot].channel != -1)
     {
       _slots[_sound_fx[slot].channel] = -1;
@@ -502,31 +559,89 @@ void Pixtone::pxtSoundDone(int channel)
   }
 }
 
+// _prepareToPlay based on audio_mix.c audio_mix_load_wav_file
 void Pixtone::_prepareToPlay(stPXSound *snd, int32_t slot)
 {
-  // convert the buffer from 8-bit mono signed to 16-bit stereo signed
-  SDL_AudioCVT cvt;
+  int8_t *buf                = snd->final_buffer;
+  int16_t value;
+  int ap;
+  int i;
+  SSChunk *chunk       = (SSChunk*)malloc(sizeof(SSChunk));
 
-  if (SDL_BuildAudioCVT(&cvt, AUDIO_S8, 1, 22050, AUDIO_S16, 2, SAMPLE_RATE) == -1)
+  if (!chunk)
+    return;
+
+  _sound_fx[slot].chunk = chunk;
+
+  /* numsamples does not know or care about
+   * multiple channels, but we need space for 2 */
+  int16_t *outbuffer = (int16_t*)malloc(snd->final_size * 2 * 2);
+
+   for(i=ap=0;i<snd->final_size;i++)
+   {
+     value = buf[i];
+     value *= 200;
+
+     outbuffer[ap++] = value;	// left ch
+     outbuffer[ap++] = value;	// right ch
+   }
+
+  if (SAMPLE_RATE != 22050)
   {
-    LOG_ERROR("SDL_BuildAudioCVT: {}", SDL_GetError());
+    double ratio = (double)SAMPLE_RATE / 22050.0;
+
+    const retro_resampler_t *resampler = NULL;
+    void *resampler_data = NULL;
+
+    retro_resampler_realloc(&resampler_data,
+          &resampler,
+          "nearest",
+          RESAMPLER_QUALITY_DONTCARE,
+          ratio);
+
+    if (resampler && resampler_data)
+    {
+      struct resampler_data info;
+
+      float *float_buf = (float*)malloc(snd->final_size * 2 * 
+            sizeof(float));
+
+      /* why is *3 needed instead of just *2? Does the 
+       * sinc driver require more space than we know about? */
+      float *float_resample_buf = (float*)malloc(snd->final_size * 2 * 
+            ratio * sizeof(float));
+
+      convert_s16_to_float(float_buf,
+            outbuffer, snd->final_size * 2, 1.0);
+
+      info.data_in       = (const float*)float_buf;
+      info.data_out      = float_resample_buf;
+      /* a 'frame' consists of two channels, so we set this
+       * to the number of samples irrespective of channel count */
+      info.input_frames  = snd->final_size;
+      info.output_frames = 0;
+      info.ratio         = ratio;
+
+      resampler->process(resampler_data, &info);
+      resampler->free(resampler_data);
+
+      /* number of output_frames does not increase with 
+       * multiple channels, but assume we need space for 2 */
+      chunk->buffer = (int16_t*)malloc(info.output_frames * 2 * sizeof(int16_t));
+      chunk->length = info.output_frames;
+      convert_float_to_s16(chunk->buffer,
+            float_resample_buf, info.output_frames * 2);
+
+      free(float_buf);
+      free(float_resample_buf);
+      free(outbuffer);
+    }
   }
-
-  cvt.len = snd->final_size;
-
-  cvt.buf = (Uint8 *)SDL_malloc(cvt.len * cvt.len_mult);
-  memcpy(cvt.buf, snd->final_buffer, snd->final_size);
-
-  if (SDL_ConvertAudio(&cvt) == -1)
+  else
   {
-    LOG_ERROR("SDL_ConvertAudio: {}", SDL_GetError());
+    chunk->buffer = outbuffer;
+    chunk->length = snd->final_size;
   }
-
-  Uint8 *sound_buf = (Uint8 *)SDL_malloc(cvt.len_cvt);
-  SDL_memcpy(sound_buf, (Uint8 *)cvt.buf, cvt.len_cvt);
-  SDL_free(cvt.buf);
-
-  _sound_fx[slot].chunk = Mix_QuickLoad_RAW(sound_buf, cvt.len_cvt);
 }
 
 } // namespace Sound

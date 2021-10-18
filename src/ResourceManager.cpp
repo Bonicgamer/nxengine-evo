@@ -3,88 +3,31 @@
 #include <stdexcept>
 #include <string>
 
-#if defined(__unix__) || defined(__APPLE__) || defined(__VITA__) || defined(__SWITCH__)
-#include <sys/stat.h>
-#elif defined(__HAIKU__)
-#include <posix/sys/stat.h> // ugh
-#elif defined(_WIN32) || defined(WIN32)
-#include <windows.h>
-#endif
-
-#if defined(__VITA__)
-#include <psp2/io/stat.h>
-#include <psp2/io/fcntl.h>
-#endif
-
 #include "ResourceManager.h"
 #include "common/glob.h"
 #include "common/misc.h"
 #include "settings.h"
 
+#include "libretro/LibretroManager.h"
+
 #include <json.hpp>
+
+// libretro-common
+#include <streams/file_stream.h>
 
 bool ResourceManager::fileExists(const std::string &filename)
 {
-#if defined(__unix__) || defined(__APPLE__) || defined(__HAIKU__) || defined(__VITA__) || defined(__SWITCH__)
-  struct stat st;
-
-  if (stat(filename.c_str(), &st) == 0)
-  {
-    return true;
-  }
-  else
-  {
-    return false;
-  }
-#elif defined(_WIN32) || defined(WIN32) // Windows
-  DWORD attrs = GetFileAttributes(widen(filename).c_str());
-
-  // Assume path exists
-  if (attrs != INVALID_FILE_ATTRIBUTES)
-  {
-    return true;
-  }
-  else
-  {
-    return false;
-  }
-#else
-#error Platform not supported
-#endif
-  return false;
+  return filestream_exists(filename.c_str());
 }
 
 std::string ResourceManager::getBasePath()
 {
-  #if defined(__SWITCH__)
-    return std::string("romfs:/");
-  #else
-    char* resPath = SDL_GetBasePath();
-    if (NULL != resPath)
-    {
-        std::string strpath(resPath);
-        SDL_free(resPath);
-        return strpath;
-    }
-    return std::string("");
-  #endif
+  return std::string(LibretroManager::getInstance()->game_dir) + "/";
 }
 
 std::string ResourceManager::getUserPrefPath()
 {
-#if defined(__SWITCH__)
-  return std::string("/switch/nxengine/");
-#else
-  char *path = SDL_GetPrefPath(NULL, "nxengine");
-  if (NULL != path)
-  {
-    std::string strpath(path);
-    SDL_free(path);
-    return strpath;
-  }
-
-  return std::string("");
-#endif
+  return std::string(LibretroManager::getInstance()->save_dir) + "/";
 }
 
 ResourceManager::ResourceManager()
@@ -106,30 +49,20 @@ std::string ResourceManager::getPath(const std::string &filename, bool localized
 {
   std::vector<std::string> _paths;
 
-  std::string userResBase = getUserPrefPath();
+  //std::string userResBase = getUserPrefPath();
 
-  if (!userResBase.empty())
-  {
-    if (!_mod.empty())
-    {
-      if (localized) _paths.push_back(userResBase + "data/mods/" + _mod + "/lang/" + std::string(settings->language) + "/" + filename);
-      _paths.push_back(userResBase + "data/mods/" + _mod + "/" + filename);
-    }
-    if (localized) _paths.push_back(userResBase + "data/lang/" + std::string(settings->language) + "/" + filename);
-    _paths.push_back(userResBase + "data/" + filename);
-  }
+  //if (!userResBase.empty())
+  //{
+  //  if (!_mod.empty())
+  //  {
+  //    if (localized) _paths.push_back(userResBase + "data/mods/" + _mod + "/lang/" + std::string(settings->language) + "/" + filename);
+  //    _paths.push_back(userResBase + "data/mods/" + _mod + "/" + filename);
+  //  }
+  //  if (localized) _paths.push_back(userResBase + "data/lang/" + std::string(settings->language) + "/" + filename);
+  //  _paths.push_back(userResBase + "data/" + filename);
+  //}
 
-  #if defined(DATADIR)
-    std::string _data(DATADIR);
-  #else
-    std::string _data = getBasePath();
-
-    #if defined(HAVE_UNIX_LIKE) and !defined(PORTABLE)
-      _data += "../share/nxengine/data/";
-    #else
-      _data += "data/";
-    #endif
-  #endif
+  std::string _data = getBasePath() + "data/";
 
   if (!_mod.empty())
   {

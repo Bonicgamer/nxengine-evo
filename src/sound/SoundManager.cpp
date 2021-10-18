@@ -5,9 +5,11 @@
 #include "../Utils/Logger.h"
 #include "../game.h"
 #include "../settings.h"
-#include "Ogg.h"
+//#include "Ogg.h"
 #include "Organya.h"
 #include "Pixtone.h"
+
+#include "sslib.h"
 
 #include <json.hpp>
 #include <fstream>
@@ -33,26 +35,7 @@ SoundManager *SoundManager::getInstance()
 bool SoundManager::init()
 {
   LOG_INFO("Sound system init");
-  if (Mix_Init(MIX_INIT_OGG) == -1)
-  {
-    LOG_ERROR("Unable to init mixer.");
-    return false;
-  }
-
-#if SDL_MIXER_PATCHLEVEL >= 2
-  if (Mix_OpenAudioDevice(SAMPLE_RATE, AUDIO_S16, 2, 2048, NULL, 0) == -1)
-  {
-    LOG_ERROR("Unable to open audio device.");
-    return false;
-  }
-#else
-  if (Mix_OpenAudio(SAMPLE_RATE, AUDIO_S16, 2, 2048) == -1)
-  {
-    LOG_ERROR("Unable to open audio device.");
-    return false;
-  }
-#endif
-  Mix_AllocateChannels(64);
+  SSInit();
 
   std::string path = ResourceManager::getInstance()->getPath("music_dirs.json", false);
 
@@ -125,8 +108,7 @@ void SoundManager::shutdown()
   Organya::getInstance()->shutdown();
   Pixtone::getInstance()->shutdown();
 
-  Mix_CloseAudio();
-  Mix_Quit();
+  SSClose();
   LOG_INFO("Sound system shutdown");
 }
 
@@ -190,8 +172,8 @@ void SoundManager::music(uint32_t songno, bool resume)
         break;
       case 1:
       case 2:
-        _songlooped  = Ogg::getInstance()->looped();
-        _lastSongPos = Ogg::getInstance()->stop();
+      //  _songlooped  = Ogg::getInstance()->looped();
+      //  _lastSongPos = Ogg::getInstance()->stop();
         break;
     }
     return;
@@ -229,13 +211,13 @@ void SoundManager::enableMusic(int newstate)
         }
         break;
       default:
-        if (play != Ogg::getInstance()->isPlaying())
-        {
-          if (play)
-            _start_ogg_track(_currentSong, 0, _music_dirs.at(settings->new_music));
-          else
-            _lastSongPos = Ogg::getInstance()->stop();
-        }
+        //if (play != Ogg::getInstance()->isPlaying())
+        //{
+        //  if (play)
+        //    _start_ogg_track(_currentSong, 0, _music_dirs.at(settings->new_music));
+        //  else
+        //    _lastSongPos = Ogg::getInstance()->stop();
+        //}
         break;
     }
   }
@@ -250,7 +232,7 @@ void SoundManager::setNewmusic(int newstate)
     settings->new_music = newstate;
 
     Organya::getInstance()->stop();
-    Ogg::getInstance()->stop();
+    //Ogg::getInstance()->stop();
 
     _reloadTrackList();
 
@@ -285,7 +267,7 @@ void SoundManager::fadeMusic()
       break;
     case 1:
     case 2:
-      Ogg::getInstance()->fade();
+      //Ogg::getInstance()->fade();
       break;
   }
 }
@@ -299,14 +281,13 @@ void SoundManager::runFade()
       break;
     case 1:
     case 2:
-      Ogg::getInstance()->runFade();
+      //Ogg::getInstance()->runFade();
       break;
   }
 }
 
 void SoundManager::pause()
 {
-  Mix_Pause(-1);
   switch (settings->new_music)
   {
     case 0:
@@ -314,14 +295,13 @@ void SoundManager::pause()
       break;
     case 1:
     case 2:
-      Ogg::getInstance()->pause();
+      //Ogg::getInstance()->pause();
       break;
   }
 }
 
 void SoundManager::resume()
 {
-  Mix_Resume(-1);
   switch (settings->new_music)
   {
     case 0:
@@ -329,19 +309,16 @@ void SoundManager::resume()
       break;
     case 1:
     case 2:
-      Ogg::getInstance()->resume();
+      //Ogg::getInstance()->resume();
       break;
   }
 }
 
-void SoundManager::updateSfxVolume()
-{
-  Mix_Volume(-1, (int)(128. / 100. * (double)settings->sfx_volume));
-}
+void SoundManager::updateSfxVolume() { }
 
 void SoundManager::updateMusicVolume()
 {
-  Ogg::getInstance()->updateVolume();
+  //Ogg::getInstance()->updateVolume();
 }
 
 bool SoundManager::_shouldMusicPlay(uint32_t songno, uint32_t musicmode)
@@ -391,13 +368,13 @@ void SoundManager::_start_ogg_track(int songno, bool resume, std::string dir)
 {
   if (_music_names.size() < 2) return;
 
-  if (songno == 0)
-  {
-    _songlooped  = Ogg::getInstance()->looped();
-    _lastSongPos = Ogg::getInstance()->stop();
-    return;
-  }
-  Ogg::getInstance()->start(_music_names[songno], dir, resume ? _lastSongPos : 0, resume ? _songlooped : false, _music_loop[songno]);
+  //if (songno == 0)
+  //{
+  //  _songlooped  = Ogg::getInstance()->looped();
+  //  _lastSongPos = Ogg::getInstance()->stop();
+  //  return;
+  //}
+  //Ogg::getInstance()->start(_music_names[songno], dir, resume ? _lastSongPos : 0, resume ? _songlooped : false, _music_loop[songno]);
 }
 
 std::vector<std::string> &SoundManager::music_dir_names()
